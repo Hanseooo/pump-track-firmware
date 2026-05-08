@@ -61,7 +61,7 @@ const int SENSOR_WET = 380;   // Raw ADC value fully submerged
 
 // ── WiFi & HTTP ───────────────────────────────────────────
 WiFiClient wifi;
-HttpClient  http(wifi, API_HOST, 80);  // Change 80 → 443 if your host uses HTTPS
+HttpClient  http(wifi, API_HOST, 443);  // Change 443 → 80 if your host uses HTTP
 
 unsigned long lastReadingTime = 0;
 

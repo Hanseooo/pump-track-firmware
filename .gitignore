@@ -1,0 +1,12 @@
+# ── Secrets (never commit) ─────────────────────────────────
+secrets.h
+secrets_local.h
+*.local.h
+
+# ── Build artifacts ────────────────────────────────────────
+*.ino.eep
+*.ino.hex
+*.ino.bin
+build/
+.pio/
+.vscode/

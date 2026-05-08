@@ -401,23 +401,6 @@ Main dashboard repository:
 pump-track
 ```
 
-Recommended firmware repository name:
-
-```txt
-pump-track-firmware
-```
-
-This naming keeps the repositories clearly grouped and scales well if additional repositories are added later.
-
-Examples:
-
-```txt
-pump-track
-pump-track-firmware
-pump-track-mobile
-pump-track-docs
-```
-
 ---
 
 # License

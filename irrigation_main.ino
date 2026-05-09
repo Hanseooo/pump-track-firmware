@@ -60,7 +60,7 @@ const int SENSOR_DRY = 820;   // Raw ADC value in open air
 const int SENSOR_WET = 380;   // Raw ADC value fully submerged
 
 // ── WiFi & HTTP ───────────────────────────────────────────
-WiFiClient wifi;
+WiFiSSLClient wifi;
 HttpClient  http(wifi, API_HOST, 443);  // Change 443 → 80 if your host uses HTTP
 
 unsigned long lastReadingTime = 0;
@@ -94,6 +94,7 @@ void setup() {
   Serial.println("===========================================");
 
   connectWiFi();
+  delay(3000); 
   fetchSettings(); // Pull threshold/interval/pumpSec from backend
 }
 
@@ -179,6 +180,7 @@ bool sendReading(int moisture) {
   http.post("/api/reading");
   http.sendHeader("Content-Type", "application/json");
   http.sendHeader("x-api-key", API_KEY);
+  http.sendHeader("Connection", "close");
   http.sendHeader("Content-Length", String(body.length()));
   http.beginBody();
   http.print(body);
@@ -219,6 +221,7 @@ void checkCommand() {
   http.beginRequest();
   http.get("/api/command");
   http.sendHeader("x-api-key", API_KEY);
+  http.sendHeader("Connection", "close");
   http.endRequest();
 
   int    status   = http.responseStatusCode();
@@ -283,40 +286,57 @@ void activateRelay() {
 // ============================================================
 void fetchSettings() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[Settings] WiFi not connected, using defaults.");
-    return;
+    connectWiFi();
   }
 
-  Serial.print("[API] GET /api/settings ... ");
+  const int maxRetries = 3;
+  int status = -1;
+  String resp;
 
-  http.beginRequest();
-  http.get("/api/settings");
-  http.sendHeader("x-api-key", API_KEY);
-  http.endRequest();
+  for (int attempt = 1; attempt <= maxRetries; attempt++) {
 
-  int status = http.responseStatusCode();
-  Serial.println(status);
+    Serial.print("[API] GET /api/settings attempt ");
+    Serial.println(attempt);
 
-  if (status == 200) {
-    StaticJsonDocument<256> doc;
-    DeserializationError err = deserializeJson(doc, http.responseBody());
+    http.beginRequest();
+    http.get("/api/settings");
+    http.sendHeader("x-api-key", API_KEY);
+    http.sendHeader("Connection", "close");
+    http.endRequest();
 
-    if (err) {
-      Serial.print("[Settings] JSON parse error: ");
-      Serial.println(err.c_str());
-      return;
+    status = http.responseStatusCode();
+    resp   = http.responseBody();
+
+    Serial.print("[API] status: ");
+    Serial.println(status);
+
+    // SUCCESS
+    if (status >= 200 && status < 300) {
+      StaticJsonDocument<256> doc;
+      DeserializationError err = deserializeJson(doc, resp);
+
+      if (!err) {
+        readingIntervalMin = doc["intervalMin"] | 5;
+        dryThreshold       = doc["threshold"]   | 40;
+        pumpDurationSec    = doc["pumpSec"]     | 5;
+
+        Serial.println("[Settings] Loaded from server:");
+        Serial.print("intervalMin="); Serial.println(readingIntervalMin);
+        Serial.print("threshold=");   Serial.println(dryThreshold);
+        Serial.print("pumpSec=");     Serial.println(pumpDurationSec);
+      }
+
+      return; // stop retry loop
     }
 
-    readingIntervalMin = doc["intervalMin"] | 5;
-    dryThreshold       = doc["threshold"]   | 40;
-    pumpDurationSec    = doc["pumpSec"]     | 5;
+    // 308 redirect or error → wait and retry
+    Serial.print("[Settings] Failed attempt ");
+    Serial.println(attempt);
 
-    Serial.print("[Settings] intervalMin="); Serial.println(readingIntervalMin);
-    Serial.print("[Settings] threshold=");   Serial.println(dryThreshold);
-    Serial.print("[Settings] pumpSec=");     Serial.println(pumpDurationSec);
-  } else {
-    Serial.println("[Settings] Failed — using hardcoded defaults.");
+    delay(1500);
   }
+
+  Serial.println("[Settings] All retries failed — using defaults.");
 }
 
 // ============================================================
